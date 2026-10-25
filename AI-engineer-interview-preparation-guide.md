@@ -200,6 +200,132 @@ def search_for_user(user, raw_args: dict):
 
 **Model answer:** The Model Context Protocol standardizes how an AI application can discover and invoke capabilities such as tools and resources exposed by a server. An MCP client connects and calls those capabilities; an MCP server adapts them to underlying services. MCP is an interoperability protocol, not an authorization or safety layer. Authentication, least privilege, schema and business validation, timeouts, logging, and execution policy still belong in the client/server application. To debug a failing tool, inspect discovery, schema, transport, auth, server logs, returned content, and the downstream service.
 
+### Additional agent interview questions from the shared thread
+
+These questions extend the existing fundamentals and tool-safety answers with topics emphasized in the linked Agentic AI interview preparation. They belong with LLM and agent concepts rather than the algorithm/backend masterclass.
+
+#### How does LangChain differ from LangGraph?
+
+**Model answer:** LangChain provides building blocks and integrations for LLM applications, including models, prompts, retrievers, and tools. LangGraph focuses on stateful orchestration as a graph of nodes and conditional transitions, with support for loops, checkpoints, and interruptible human review. A simple retrieval-and-answer flow may only need a chain. A workflow that retrieves, calls tools, verifies results, retries within limits, and pauses for approval benefits from an explicit state graph. I would select based on control-flow needs and explain the workflow independently of the framework.
+
+#### What is the difference between traditional RAG and Agentic RAG?
+
+**Model answer:** Traditional RAG usually performs a predefined retrieve-then-generate sequence. Agentic RAG lets the workflow adapt retrieval: it may decompose a question, select a search strategy, issue multiple queries, check evidence sufficiency, and retrieve again when evidence is weak. That can help with complex questions but adds model calls, latency, cost, and more failure paths. I would compare it against a fixed hybrid-retrieval baseline on a representative evaluation set and use adaptive retrieval only when the quality gain justifies its cost.
+
+#### What are multimodal LLMs and vision-language models, and how would you use them for documents?
+
+**Model answer:** Multimodal LLMs process or relate multiple input types, such as text, images, and audio. Vision-language models connect image content with language tasks. For document ingestion, I would use text extraction for born-digital text, OCR for scanned pages, and a vision-language model where layout, charts, or visual relationships matter. Audio may be transcribed while preserving timestamps and speaker metadata when useful. I would retain references to the original page, region, or timestamp and evaluate extraction quality on representative files; model output is not ground truth.
+
+#### What kinds of memory should an agent have?
+
+**Model answer:** I separate working state for the current task, relevant conversation history, persistent long-term facts or preferences, and external knowledge retrieved from a source system. Working state should contain the goal, validated inputs, evidence, tool results, and pending approval. Persistent memory should be stored only when it has a clear purpose, with access controls, retention rules, and a way to correct or delete stale information. RAG documents remain an external knowledge source, not automatically user memory. I would avoid sending an entire conversation history into every model call because it increases cost, consumes context, and introduces irrelevant or outdated text.
+
+#### How do you manage a limited context window?
+
+**Model answer:** Keep instructions and evidence relevant to the current step, store structured task state outside the prompt, remove redundant turns, and summarize completed work only when needed. Preserve source IDs and key constraints in summaries, and retrieve evidence on demand. Reserve output capacity and monitor token use. Because summaries are lossy, keep consequential facts traceable to authoritative documents rather than relying on a summary as the only record.
+
+#### When would you use multiple agents instead of one?
+
+**Model answer:** A single agent is simpler to trace and operate. Multiple agents can help when work divides into genuinely independent specialties, parallel research, or independent verification. They also increase model calls, coordination, latency, cost, and disagreement handling. I would first build a single agent with deterministic workflow nodes and measure task failures. I would add separate agents only when evaluation shows a repeatable benefit that outweighs those costs; the coordinator still needs explicit state, permissions, and termination rules.
+
+#### What are Self-RAG and Corrective RAG?
+
+**Model answer:** Self-RAG describes methods where a model uses learned or explicit reflection signals to decide whether retrieval is needed and whether retrieved evidence supports an answer. Corrective RAG (CRAG) evaluates retrieval quality and takes corrective steps when evidence is weak, such as trying an alternate retrieval method or source. Implementations vary, so I would name the exact method being discussed. Both should be evaluated against a simpler RAG baseline for answer quality, added latency, cost, and abstention behavior.
+
+#### How would you evaluate and trace an agent workflow?
+
+**Model answer:** Measure the final task outcome and intermediate decisions: retrieval relevance and access correctness, tool selection, argument validity, tool execution, evidence grounding, citations, completion, and safe abstention. Track latency and cost by node, model call, and tool, along with retries and human escalations. Keep a fixed dataset of realistic tasks and inspect traces to locate whether a failure came from retrieval, model output, validation, or execution. A tracing tool such as LangSmith can capture the sequence of model, retrieval, and tool steps, but tracing alone does not prove correctness. Protect sensitive inputs in stored traces and evaluate changes with task-specific checks.
+
+#### How would you improve an agent that is slow, expensive, or unreliable?
+
+**Model answer:** Trace the complete run and measure time, cost, and failures by step before changing the architecture. Remove redundant model calls, improve retrieval to reduce repeated searches, parallelize independent I/O, cache only safely reusable results, or route simple tasks to a smaller model. For reliability, use typed outputs, bounded retries, timeouts, idempotent side effects, checkpoints, explicit fallbacks, and a maximum step count. Run changes against a stable evaluation set and compare task success, quality, latency, and cost together; optimizing one metric while harming correctness is not an improvement.
+
+### Applied AI performance and marketing automation questions
+
+#### Suppose an LLM system is slow and returns inconsistent results. How would you improve its performance and automate quality control?
+
+**Model answer:** “I would treat inconsistency and slowness as separate symptoms until traces show they share a cause. First I would instrument the complete request path: authentication and queue wait, retrieval, external tools, prompt assembly, model time to first token (TTFT), generation time, and post-processing. I would record p50/p95/p99 latency, input and output tokens, model/prompt/index versions, retries, timeouts, error rates, and cost per successful task. An average latency hides the slow cohort, so I would break metrics down by task type, model route, tenant, and dependency.
+
+“Then I would build a representative, versioned evaluation set and replay each case across repeated runs. I would score factual correctness, grounding against retrieved evidence, instruction adherence, schema validity, and task completion separately. For inconsistent cases I would inspect whether variation comes from sampling, changing retrieval candidates, stale or differently-versioned indexes, nondeterministic tools, mutable conversation state, or upstream failures. Lowering temperature can reduce sampling variance, but it cannot repair weak evidence or incorrect orchestration. Clear instructions, examples, constrained structured output, and Pydantic validation help with format consistency; invalid responses should be repaired or rejected explicitly rather than silently accepted. For factual tasks, improve chunking, embeddings, metadata filters, candidate selection, or reranking and provide a grounded abstention path.
+
+“For latency, optimize the measured bottleneck: reduce irrelevant prompt tokens and retrieved chunks, remove redundant model calls, parallelize independent I/O, reuse clients/connections, and route simple tasks to a smaller model only if it passes the quality bar. Cache only deterministic or safely reusable results, with authorization and freshness in the cache key. Streaming can improve perceived responsiveness by lowering time to first visible output, but it does not necessarily reduce total generation time. Long jobs should run asynchronously; synchronous calls need deadlines, bounded retries, concurrency limits, and a clear fallback or escalation path.
+
+“I would automate the lifecycle as a tested pipeline: request validation and routing, retrieval/generation, response validation, trace and metric recording, then alerting on SLO and quality regressions. Prompt, model, and retrieval changes run against the same eval set in CI; production canaries are promoted only when quality, latency, cost, and error-rate thresholds pass. Failed or low-confidence results can trigger a bounded retry, a validated fallback model, or human review. I would not let an LLM rewrite its own prompt or deploy itself based only on an LLM-judge score. I would inspect material failures and calibrate judge results against human-reviewed examples.”
+
+**How I would apply this to a RAG product:** Keep document ingestion separate from the online query path. Measure ingestion freshness and queue age independently from retrieval and generation latency. Add representative query/evidence/answer cases to the evaluation set, capture stage-level traces, and use the results to decide whether the bottleneck is parsing, indexing, retrieval, or generation before changing infrastructure.
+
+**Automation loop:**
+
+```mermaid
+flowchart LR
+  R[Request + auth] --> T[Trace and route]
+  T --> RET[Retrieve evidence]
+  RET --> GEN[Generate response]
+  GEN --> VAL[Schema and grounding checks]
+  VAL -->|valid| RESP[Respond or stream]
+  VAL -->|uncertain / invalid| FB[Bounded retry, fallback, or review]
+  RET --> MET[Record stage metrics and trace]
+  GEN --> MET
+  VAL --> MET
+  MET --> EVAL[Eval set + SLO checks]
+  EVAL -->|passes| CANARY[Canary and staged promotion]
+  EVAL -->|fails| HOLD[Block release and inspect failures]
+```
+
+> **Interview signal:** Explain the trade-off between TTFT and total latency, and show how each proposed optimization is guarded by an evaluation and rollback path.
+
+#### How would you automate Facebook/Meta marketing campaigns with AI?
+
+**Model answer:** “I would build a closed-loop marketing workflow, with the LLM helping with research and creative work while a backend service controls account access, validation, and campaign mutations. First I would collect the business objective, product facts/catalog, permitted audience signals, geography, campaign schedule, approved assets and claims, budget ceiling, conversion definition, and target KPI. Historical campaign data and website analytics can inform audience and journey-stage hypotheses, but those suggestions must be tested; they are not evidence that a segment will convert.
+
+“The AI layer can draft a structured campaign brief, value propositions, copy/headline/CTA variants, and creative concepts from approved brand guidance and product facts. It should return typed fields rather than inventing arbitrary platform settings. Deterministic checks validate the objective and campaign hierarchy, allowed audience/placement values, schedule, required fields, budget caps, creative dimensions, landing-page consistency, policy constraints, and supported account capabilities. New claims, sensitive content, and high-impact campaigns should get human review.
+
+“A backend integration reads account configuration and insights through the authorized Meta Marketing API. I would create a campaign in draft or paused state, show the objective, audience, creative, schedule, and spend for approval, and activate only after an authorized person approves. A scheduled worker then collects insights and conversion data, normalizes them with a consistent attribution window, and computes agreed metrics such as spend, CTR, CPC, conversion rate, CPA, revenue, and ROAS. Clicks are useful diagnostics but are not the business outcome. If CTR is strong but purchases are weak, investigate audience fit, offer, landing page, checkout, and conversion instrumentation before increasing budget. Account attribution can differ from verified orders and conversions can arrive late, so the dashboard should show that limitation.
+
+“I would begin with reporting, anomaly alerts, and recommendations, then add deterministic, bounded actions after the measurement pipeline is trustworthy. For example, flag or pause an ad that has spent beyond a threshold without conversions only after a minimum amount of mature data; recommend budget reallocation when a campaign meets the target CPA/ROAS; and run controlled tests of creative, offer, or audience. A separate optimizer should calculate decisions from measured data, enforce per-campaign and account-level limits, and require approval for large changes. An LLM should not independently set spend based on unverified reasoning. With enough data, statistical experiments or contextual bandits may help allocate traffic across variants, but only with explicit guardrails and an evaluation design.
+
+“I would log every proposal and write with the inputs, metric window, reason, approval identity, API response, and resulting campaign state. Writes need scoped server-side credentials, duplicate protection/idempotency where supported, bounded handling of throttling and transient errors, and an emergency pause/rollback path. A dashboard should expose spend, conversions, CPA, ROAS, status, alerts, and optimization history. The exact API fields, permissions, supported objectives, and ad-policy requirements must be validated against the current Meta API version.”
+
+**Practical rollout:** Start with AI-assisted content and campaign briefs, then scheduled reporting, then alerts and recommendation-only mode. Add small automatic adjustments only after controlled tests show that measurement, attribution, and guardrails behave correctly. A reasonable implementation using the profile’s TypeScript/Python, Redis, PostgreSQL, and AWS experience is a Next.js dashboard, a FastAPI or Node backend, PostgreSQL for campaign/approval/audit state, Redis-backed scheduled workers, and the Meta Marketing API. Keep the model behind the backend: it proposes structured work; ordinary application code authorizes and executes it.
+
+```mermaid
+flowchart LR
+  B[Approved campaign brief + assets] --> P[AI planner: structured proposal]
+  P --> V[Deterministic validation: policy, audience, budget]
+  V --> H[Human review and approval]
+  H --> API[Campaign service: Meta Marketing API]
+  API --> PA[Create paused campaign / ads]
+  PA --> A[Authorized activation]
+  A --> M[Scheduled insights collection]
+  M --> E[Experiment and KPI evaluation]
+  E --> P
+  V -->|reject / revise| B
+```
+
+#### How would you convert a natural-language marketing brief into a campaign without letting the model invent settings?
+
+**Model answer:** I would have the model produce a typed proposal containing only fields supported by the campaign service, such as objective, approved audience definition, schedule, budget, placements, and creative references. Each value would be checked against the advertiser’s account configuration, a policy ruleset, allowed enums, and explicit budget/targeting bounds. Unknown or contradictory requirements should become clarification questions, not guessed defaults. I would preserve a link from every generated claim and creative element to approved source material, run validation, then present a human-readable preview before any write.
+
+#### How would you detect an underperforming campaign and decide what to change?
+
+**Model answer:** I would define the KPI and attribution window before launch, then evaluate mature data rather than reacting to noisy early results. I would segment by campaign, ad set, creative, placement, and audience where volume is sufficient, while accounting for spend, conversion delay, and confidence. The system could flag anomalies or propose a bounded experiment, but should distinguish correlation from causal impact. Changes should be small, logged, and compared with a control or prior baseline. A minimum data threshold and spend cap prevent overreacting to sparse conversions.
+
+#### How should an AI system generate and test ad creative?
+
+**Model answer:** Generate multiple variants only from approved product facts, brand voice, and permitted assets. Validate each variant for unsupported claims, prohibited content, required disclosures, length and format constraints, and consistency with the landing page. Use human review for new claims or sensitive categories. Run controlled experiments with one or a small number of planned differences, predefine the primary metric, and avoid selecting a winner from repeated uncorrected peeking. Preserve the creative version and prompt/source metadata so results are attributable and reproducible.
+
+#### Would you let an agent change campaign budgets automatically?
+
+**Model answer:** Only within explicit, conservative limits and after proving the policy in a recommendation-only or shadow mode. I would enforce account-level and campaign-level ceilings in code, bound the maximum change per interval, require adequate data, and check that the campaign is eligible for the proposed change. High-impact budget increases, new audiences, or new claims should require human approval. The system needs an emergency pause, immutable audit trail, idempotent updates, and alerts. The model can recommend; deterministic policy code decides whether a change is allowed.
+
+#### How would you measure whether AI marketing automation is working?
+
+**Model answer:** Measure business outcomes such as incremental conversions, cost per qualified conversion, revenue or return on ad spend where attribution is trustworthy, and time saved in campaign operations. Track leading indicators such as click-through rate and delivery as diagnostics, not substitutes for business value. Include guardrails for spend, frequency, disapproval rate, and customer complaints. Use holdouts or controlled experiments when possible; platform-reported attribution alone does not establish incrementality. Report confidence and attribution limitations alongside results.
+
+#### How would you secure the integration between an AI service and an ad account?
+
+**Model answer:** Use least-privilege, server-side credentials scoped to the intended business and ad account; keep tokens in a secret manager and rotate them according to the platform’s rules. Separate read access from write access where practical, validate the authenticated tenant on every request, and never allow user prompts or retrieved documents to supply credentials or expand tool permissions. Apply rate limits, request signing/validation as required by the integration, redacted logs, and an auditable record of every proposed and executed mutation. Handle API errors and throttling with bounded backoff, and make writes safe to retry.
+
 ### Shared-chat application questions and answers
 
 The shared interview-preparation conversation includes two company questions. These are ready-to-adapt drafts; keep ownership claims precise.
@@ -299,6 +425,16 @@ Use a consistent answer structure: **problem → your ownership → architecture
 
 **Model answer:** Parsing, OCR, transcription, and embedding can be slow and memory-intensive. A queue isolates this work from request-serving capacity, enables bounded concurrency and retries, and lets the API acknowledge uploads quickly. WebSockets report progress without keeping an HTTP request open. At higher volume I would use object storage as the source of truth, queue references rather than file bytes, stream or incrementally parse large objects, enforce per-worker memory budgets, cap parallel jobs, and track queue age and dead-letter counts. The specific queue implementation should match what I used; my résumé identifies Redis-backed asynchronous work and WebSockets.
 
+#### An AI coding tool generated code for a feature you shipped. What did it generate, what did you correct or reject, and what did you test?
+
+**Interview-ready answer:** “One example was the document-ingestion flow for a RAG application. An AI coding tool generated a straightforward implementation that uploaded a document and then kept the same HTTP request open while the application extracted the content, split it into chunks, and indexed it. That worked locally with smaller files, but I recognized that large documents could take longer than the configured Nginx or application timeout in production.
+
+“I rejected the synchronous processing design and changed the flow so the upload request could return promptly after the processing job was queued in Redis. A background worker then handled extraction, chunking, and vector indexing. Redis was the queue and job coordination layer; the worker performed the document processing. This kept long-running work out of the user-facing request and let the user follow the processing status.
+
+“I tested large PDF uploads and confirmed that the API returned without waiting for ingestion to finish. I verified that the worker extracted, chunked, and indexed the documents, and then queried them to confirm relevant content could be retrieved. I also tested processing-failure scenarios and concurrent uploads; the failure cases were handled by the workflow, and multiple document jobs completed successfully. Those checks passed. The main lesson was that generated code gave me a useful starting point, but I still needed to review it against production timeouts and change the architecture.”
+
+> **Interview follow-up:** Be ready to explain what a processing failure did in your implementation (retry, failed job state, or logging) and how users saw progress. Use the behavior that actually shipped; the answer above does not assume a retry policy that was not specified.
+
 #### Q34. What were the main bottlenecks and what would you measure?
 
 **Model answer:** In large-file RAG, likely bottlenecks include full-file memory loading, slow extraction, embedding API throughput, uncontrolled parallelism, index writes, and long HTTP timeouts. The measurements I would add are bytes and pages processed, worker RSS, stage duration, retries, queue wait, chunks per file, embedding tokens, index upsert latency, and end-to-end freshness. The design improvements are streaming/incremental processing, bounded worker concurrency, batching, idempotent checkpoints, and user-visible job status. In interviews, I will describe only bottlenecks I observed directly as facts and label proposed improvements as such.
@@ -373,6 +509,8 @@ Use a consistent answer structure: **problem → your ownership → architecture
 - Candidate résumé: [`data/mueem_nahid_AI_engineer.pdf`](data/mueem_nahid_AI_engineer.pdf)
 - [Candidate portfolio](https://mueem.vercel.app/)
 - [Shared interview preparation conversation](https://chatgpt.com/share/6adcaad5-8a34-83e8-a9d6-f35061ff77a3)
+- [Agentic AI and AI-assisted development interview thread](https://chatgpt.com/share/6ade4635-799c-83ec-bdf7-d279d5de7fa0)
+- [Meta’s official Facebook Marketing API Postman workspace](https://www.postman.com/meta/facebook-marketing-api/overview)
 - [PyTorch: optimized scaled dot-product attention](https://pytorch.org/blog/out-of-the-box-acceleration/)
 - [Hugging Face PEFT: quantization and QLoRA](https://huggingface.co/docs/peft/developer_guides/quantization)
 - [vLLM documentation](https://docs.vllm.ai/en/stable/)
