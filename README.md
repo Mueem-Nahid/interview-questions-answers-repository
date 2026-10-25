@@ -7,6 +7,7 @@ A collection of interview preparation notes and question-and-answer guides for s
 | File | Focus |
 |---|---|
 | [AI Engineer Interview Preparation Guide](AI-engineer-interview-preparation-guide.md) | AI/ML foundations, LLMs, RAG, agentic systems, MLOps, system design, and candidate project deep dives |
+| [Senior Software Engineer Algorithm & Backend Systems Masterclass](senior-software-engineer-algorithm-backend-systems-interview-qa-masterclass.md) | Search internals, storage engines, distributed coordination, graph algorithms, and production trade-offs |
 | [All Questions and Answers](all-qus-and-ans.md) | Combined full-stack and software engineering interview questions |
 | [JavaScript and TypeScript](javascript-typescript-questions-answers.md) | Language fundamentals and advanced topics |
 | [React](react-questions-answers.md) | React concepts and application development |
